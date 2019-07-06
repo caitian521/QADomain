@@ -1,0 +1,1 @@
+from pytorch_pretrained_bert.modeling import BertPreTrainedModel
