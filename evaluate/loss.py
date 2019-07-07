@@ -1,7 +1,8 @@
 from torch.nn import CrossEntropyLoss
 
 
-def loss_fn(start_logits, end_logits, answer_type_logits, start_positions, end_positions, answer_types):
+def loss_fn(start_logits, end_logits, answer_type_logits, start_positions, end_positions, answer_types,
+            domain_type_logits, domain_types):
     assert start_positions is not None and end_positions is not None
     # If we are on multi-GPU, split add a dimension
     if len(start_positions.size()) > 1:
@@ -15,6 +16,9 @@ def loss_fn(start_logits, end_logits, answer_type_logits, start_positions, end_p
     loss_f = CrossEntropyLoss(ignore_index=ignored_index)
     start_loss = loss_f(start_logits, start_positions)
     end_loss = loss_f(end_logits, end_positions)
+
+
     answer_type_loss = loss_f(answer_type_logits, answer_types)
-    total_loss = (start_loss + end_loss + answer_type_loss) / 3
+    domain_type_loss = loss_f(domain_type_logits, domain_types)
+    total_loss = (start_loss + end_loss + answer_type_loss + domain_type_loss) / 4
     return total_loss
