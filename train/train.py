@@ -1,6 +1,7 @@
 import time
 import torch
 from pytorch_pretrained_bert.optimization import BertAdam
+from tensorboardX import SummaryWriter
 
 import config.args as args
 from util.plot_util import loss_acc_plot
@@ -23,20 +24,9 @@ def warmup_linear(x, warmup=0.002):
         return x/warmup
     return 1.0 - x
 
+log_writer = SummaryWriter(args.log_file)
+def fit(model, training_iter, eval_iter, num_epoch, pbar, num_train_steps, device, n_gpu=1, verbose=1):
 
-def fit(model, training_iter, eval_iter, num_epoch, pbar, num_train_steps, verbose=1):
-    # ------------------判断CUDA模式----------------------
-    if args.local_rank == -1 or args.no_cuda:
-        device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
-        n_gpu = torch.cuda.device_count()   # 多GPU
-        # n_gpu = 1
-    else:
-        torch.cuda.set_device(args.local_rank)
-        device = torch.device("cuda", args.local_rank)
-        n_gpu = 1
-
-    logger.info("device: {} n_gpu: {}, distributed training: {}, 16-bits training: {}".format(
-        device, n_gpu, bool(args.local_rank != -1), args.fp16))
     # ---------------------优化器-------------------------
     param_optimizer = list(model.named_parameters())
     no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
@@ -87,7 +77,7 @@ def fit(model, training_iter, eval_iter, num_epoch, pbar, num_train_steps, verbo
 
     elif n_gpu > 1:
         model = torch.nn.DataParallel(model)  # , device_ids=[0, 1, 2]
-
+    '''
     train_losses = []
     eval_losses = []
     train_accuracy = []
@@ -99,87 +89,121 @@ def fit(model, training_iter, eval_iter, num_epoch, pbar, num_train_steps, verbo
         "eval_loss": eval_losses,
         "eval_acc": eval_accuracy
     }
+    '''
 
-# ------------------------训练------------------------------
+    # 保存最好的模型
     best_f1 = 0
     start = time.time()
     global_step = 0
     for e in range(num_epoch):
-        model.train()
-        for step, batch in enumerate(training_iter):
-            batch = tuple(t.to(device) for t in batch)
-            input_ids, input_mask, segment_ids, start_positions, end_positions, answer_types = batch
-            start_logits, end_logits, answer_type_logits = model(input_ids, segment_ids, input_mask)
-            train_loss = loss_fn(start_logits, end_logits, answer_type_logits, start_positions, end_positions, answer_types)
+        train_loss, train_acc = train_steps(model, training_iter, optimizer, pbar, global_step, t_total, start, device)
+        eval_acc, eval_f1, eval_loss_avg = evaluate(model, eval_iter, device)
 
-            if args.gradient_accumulation_steps > 1:
-                train_loss = train_loss / args.gradient_accumulation_steps
+        if eval_f1 > best_f1:
+            best_f1 = eval_f1
+            save_model(model, args.output_dir, t_total*(e+1))
+        '''
+        if e % verbose == 0:
+            train_losses.append(train_loss.item())
+            train_accuracy.append(train_acc)
+            eval_losses.append(eval_loss_avg)
+            eval_accuracy.append(eval_acc)
+        '''
+        logger.info(
+            '\n\nEpoch %d - train_loss: %4f - eval_loss: %4f - train_acc:%4f - eval_acc:%4f - eval_f1:%4f\n'
+            % (e + 1,
+               train_loss.item(),
+               eval_loss_avg,
+               train_acc,
+               eval_acc,
+               eval_f1))
 
-            if args.fp16:
-                optimizer.backward(train_loss)
-            else:
-                train_loss.backward()
+# ------------------------训练------------------------------
+def train_steps(model, training_iter, optimizer, pbar, global_step, t_total, start, device):
+    model.train()
+    save_step = t_total * args.eval_epoch
+    max_f1 = 0
+    for step, batch in enumerate(training_iter):
+        batch = tuple(t.to(device) for t in batch)
+        input_ids, input_mask, segment_ids, start_positions, end_positions, answer_types, domain_types = batch
+        start_logits, end_logits, answer_type_logits, domain_type_logits = model(input_ids, segment_ids, input_mask)
+        train_loss = loss_fn(start_logits, end_logits, answer_type_logits, start_positions, end_positions, answer_types,
+                             domain_type_logits, domain_types)
 
-            if (step + 1) % args.gradient_accumulation_steps == 0:
-                # modify learning rate with special warm up BERT uses
-                lr_this_step = args.learning_rate * warmup_linear(global_step / t_total, args.warmup_proportion)
-                for param_group in optimizer.param_groups:
-                    param_group['lr'] = lr_this_step
-                optimizer.step()
-                optimizer.zero_grad()
-                global_step += 1
+        if args.gradient_accumulation_steps > 1:
+            train_loss = train_loss / args.gradient_accumulation_steps
 
-            start_logits, end_logits = start_logits.cpu(), end_logits.cpu()
-            start_positions, end_positions = start_positions.cpu(), end_positions.cpu()
-            train_acc, f1 = qa_evaluate((start_logits, end_logits), (start_positions, end_positions))
-            pbar.show_process(train_acc, train_loss.item(), f1, time.time() - start, step)
+        if args.fp16:
+            optimizer.backward(train_loss)
+        else:
+            train_loss.backward()
+
+        if (step + 1) % args.gradient_accumulation_steps == 0:
+            # modify learning rate with special warm up BERT uses
+            lr_this_step = args.learning_rate * warmup_linear(global_step / t_total, args.warmup_proportion)
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = lr_this_step
+            optimizer.step()
+            optimizer.zero_grad()
+            global_step += 1
+
+        start_logits, end_logits = start_logits.cpu(), end_logits.cpu()
+        start_positions, end_positions = start_positions.cpu(), end_positions.cpu()
+        train_acc, f1 = qa_evaluate((start_logits, end_logits), (start_positions, end_positions))
+        pbar.show_process(train_acc, train_loss.item(), f1, time.time() - start, step)
+
+        if (step+1) % args.train_sample == 0:
+            log_writer.add_scalar('Loss', train_loss.item(), step)
+            log_writer.add_scalar('Acc', train_acc, step)
+
+        '''
+        模型选择
+        '''
+        if (step+1) % args.eval_step == 0 and step > save_step:
+            if max_f1 < f1:
+                max_f1 = f1
+                save_model(model, args.output_dir, step)
+
+    return train_loss, train_acc
+
+    #loss_acc_plot(history)
 
 # -----------------------验证----------------------------
-        model.eval()
-        count = 0
-        y_predicts, y_labels = [], []
-        eval_starts_predict, eval_ends_predict = [], []
-        eval_starts_label, eval_ends_label = [], []
-        eval_loss, eval_acc, eval_f1 = 0, 0, 0
-        with torch.no_grad():
-            for step, batch in enumerate(eval_iter):
-                batch = tuple(t.to(device) for t in batch)
-                input_ids, input_mask, segment_ids, start_positions, end_positions, answer_types = batch
-                start_logits, end_logits, answer_type_logits = model(input_ids, segment_ids, input_mask)
-                eval_los = loss_fn(start_logits, end_logits, answer_type_logits, start_positions, end_positions, answer_types)
-                eval_loss = eval_los + eval_loss
-                count += 1
-                eval_starts_predict.append(start_logits)
-                eval_ends_predict.append(end_logits)
-                eval_starts_label.append(start_positions)
-                eval_ends_label.append(end_positions)
+def evaluate(model, eval_iter, device):
+    model.eval()
+    count = 0
+    y_predicts, y_labels = [], []
+    eval_starts_predict, eval_ends_predict = [], []
+    eval_starts_label, eval_ends_label = [], []
+    eval_type_label, eval_type_predict = [], []
+    eval_loss, eval_acc, eval_f1 = 0, 0, 0
+    with torch.no_grad():
+        for step, batch in enumerate(eval_iter):
+            batch = tuple(t.to(device) for t in batch)
+            input_ids, input_mask, segment_ids, start_positions, end_positions, answer_types, _ = batch
+            start_logits, end_logits, answer_type_logits, _ = model(input_ids, segment_ids, input_mask)
+            #eval_los = loss_fn(start_logits, end_logits, answer_type_logits, start_positions, end_positions, answer_types)
+            #eval_loss = eval_los + eval_loss
+            count += 1
+            eval_starts_predict.append(start_logits)
+            eval_ends_predict.append(end_logits)
+            eval_starts_label.append(start_positions)
+            eval_ends_label.append(end_positions)
+            eval_type_predict.append(answer_type_logits)
+            eval_type_label.append(answer_types)
 
-            eval_starts_predicted = torch.cat(eval_starts_predict, dim=0).cpu()
-            eval_ends_predicted = torch.cat(eval_ends_predict, dim=0).cpu()
-            eval_starts_labeled = torch.cat(eval_starts_label, dim=0).cpu()
-            eval_ends_labeled = torch.cat(eval_ends_label, dim=0).cpu()
-            eval_predicted = (eval_starts_predicted, eval_ends_predicted)
-            eval_labeled = (eval_starts_labeled, eval_ends_labeled)
 
-            eval_acc, eval_f1 = qa_evaluate(eval_predicted, eval_labeled)
+        eval_starts_predicted = torch.cat(eval_starts_predict, dim=0).cpu()
+        eval_ends_predicted = torch.cat(eval_ends_predict, dim=0).cpu()
+        eval_starts_labeled = torch.cat(eval_starts_label, dim=0).cpu()
+        eval_ends_labeled = torch.cat(eval_ends_label, dim=0).cpu()
+        eval_type_predicted = torch.cat(eval_type_predict, dim=0).cpu()
+        eval_type_labeled = torch.cat(eval_type_label, dim=0).cpu()
 
-            logger.info(
-                '\n\nEpoch %d - train_loss: %4f - eval_loss: %4f - train_acc:%4f - eval_acc:%4f - eval_f1:%4f\n'
-                % (e + 1,
-                   train_loss.item(),
-                   eval_loss.item()/count,
-                   train_acc,
-                   eval_acc,
-                   eval_f1))
+        eval_predicted = (eval_starts_predicted, eval_ends_predicted, eval_type_predicted)
+        eval_labeled = (eval_starts_labeled, eval_ends_labeled, eval_type_labeled)
 
-            # 保存最好的模型
-            if eval_f1 > best_f1:
-                best_f1 = eval_f1
-                save_model(model, args.output_dir)
+        eval_acc, eval_f1 = qa_evaluate(eval_predicted, eval_labeled)
+        eval_loss_avg = 0
+        return eval_acc, eval_f1, eval_loss_avg
 
-            if e % verbose == 0:
-                train_losses.append(train_loss.item())
-                train_accuracy.append(train_acc)
-                eval_losses.append(eval_loss.item()/count)
-                eval_accuracy.append(eval_acc)
-    loss_acc_plot(history)

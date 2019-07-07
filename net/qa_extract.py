@@ -11,7 +11,10 @@ class QaExtract(BertPreTrainedModel):
         #     p.requires_grad = False
         self.classifier = nn.Linear(config.hidden_size, 2)
         self.apply(self.init_bert_weights)
+        self.bert_dense = nn.Linear(config.hidden_size, config.hidden_size)
+        self.activation = nn.Tanh()
         self.answer_type_classifier = nn.Linear(config.hidden_size, 4)
+        self.domain_type_classifier = nn.Linear(config.hidden_size, 2)
 
     def forward(self, input_ids, token_type_ids, attention_mask, output_all_encoded_layers=False):
         sequence_output, pooled_output = self.bert(input_ids,
@@ -23,6 +26,11 @@ class QaExtract(BertPreTrainedModel):
         start_logits = start_logits.squeeze(-1)                                            # (B, T)
         end_logits = end_logits.squeeze(-1)                                                # (B, T)
         answer_type_logits = self.answer_type_classifier(pooled_output)
-        return start_logits, end_logits, answer_type_logits
+
+        last_sep = sequence_output[:, -1]
+        sep_output = self.activation(self.bert_dense(last_sep))
+        domain_type_logits = self.domain_type_classifier(sep_output)
+        return start_logits, end_logits, answer_type_logits, domain_type_logits
+
 
 

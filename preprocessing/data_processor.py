@@ -47,7 +47,7 @@ class InputFeatures(object):
                  start_position=None,
                  end_position=None,
                  answer_type=None,
-                 domain_type=None):
+                 domain=None):
         self.unique_id = unique_id
         self.example_index = example_index
         self.doc_span_index = doc_span_index
@@ -60,11 +60,11 @@ class InputFeatures(object):
         self.start_position = start_position
         self.end_position = end_position
         self.answer_type = answer_type
-        self.domain_type = domain_type
+        self.domain = domain
 
 
 
-def train_val_split(X, y, valid_size=0.25, random_state=2019, shuffle=True):
+def train_val_split(X, y, valid_size=0.1, random_state=2019, shuffle=True):
     """
     训练集验证集分割
     :param X: sentences
@@ -289,7 +289,7 @@ def convert_examples_to_features(examples,
             start_position = None
             end_position = None
             answer_type = None
-            domain_type = example.domain
+            domain_type = args.domain_type[example.domain]
             if is_training:
                 # For training, if our document chunk does not contain an annotation
                 # we throw it out, since there is nothing to predict.
@@ -315,7 +315,7 @@ def convert_examples_to_features(examples,
                     answer_type = "no-answer"
 
                 answer_type = args.answer_type[answer_type]
-
+            '''
             if example_index < 10:
                 logger.info("*** Example ***")
                 logger.info("unique_id: %s" % (unique_id))
@@ -339,7 +339,7 @@ def convert_examples_to_features(examples,
                             "answer: %s" % (answer_text))
                     logger.info("answer_type: %s" %answer_type)
                     logger.info("domain_type: %s" %domain_type)
-
+            '''
                 
 
             features.append(
@@ -356,7 +356,7 @@ def convert_examples_to_features(examples,
                     start_position=start_position,
                     end_position=end_position,
                     answer_type=answer_type,
-                    domain_type=domain_type))
+                    domain=domain_type))
             unique_id += 1
 
     return features
@@ -421,4 +421,3 @@ if __name__ == '__main__':
                                  doc_stride=500,
                                  max_query_length=32,
                                  is_training=True)
-ß

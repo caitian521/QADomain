@@ -43,9 +43,10 @@ def create_batch_iter(mode):
     start_positions = torch.tensor([f.start_position for f in features], dtype=torch.long)
     end_positions = torch.tensor([f.end_position for f in features], dtype=torch.long)
     answer_types = torch.tensor([f.answer_type for f in features], dtype=torch.long)
+    domain_types = torch.tensor([f.domain for f in features], dtype=torch.long)
 
     # 数据集
-    data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, start_positions, end_positions, answer_types)
+    data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, start_positions, end_positions, answer_types, domain_types)
 
     if mode == "train":
         num_train_steps = int(

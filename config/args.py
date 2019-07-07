@@ -5,6 +5,8 @@ data_dir = "data/"
 output_dir = "output/checkpoint"
 VOCAB_FILE = "pretrained_model/vocab.txt"
 bert_model = "pretrained_model/pytorch_pretrained_model"
+log_file = "output/logs"
+
 doc_stride = 128
 max_query_length = 32
 max_seq_length = 256
@@ -21,7 +23,14 @@ gradient_accumulation_steps = 2
 fp16 = False
 loss_scale = 0.
 
+# -------------- train steps --------------------
+train_sample = 100
+eval_step = 200
+eval_epoch = 2
+
+
 answer_type = {"YES": 0, "NO": 1, "no-answer": 2, "long-answer": 3}
+domain_type = {"civil": 0, "criminal": 1}
 
 # ------------ Predict -----------------
 predict_batch_size = 16

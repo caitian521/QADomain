@@ -4,9 +4,10 @@ from net.qa_extract import QaExtract
 import config.args as args
 
 
-def save_model(model, output_dir):
+def save_model(model, output_dir, step):
     model_to_save = model.module if hasattr(model, 'module') else model  # Only save the model it-self
-    output_model_file = os.path.join(output_dir, "pytorch_model.bin")
+    model_name = "pytorch_model%07d.bin" % step
+    output_model_file = os.path.join(output_dir, model_name)
     torch.save(model_to_save.state_dict(), output_model_file)
 
 
