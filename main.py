@@ -1,7 +1,5 @@
 import json
 from predict.predict import main
-import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
 
 if __name__ == '__main__':
     test_data_path = "../data/data.json"

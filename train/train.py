@@ -96,7 +96,7 @@ def fit(model, training_iter, eval_iter, num_epoch, pbar, num_train_steps, devic
     start = time.time()
     global_step = 0
     for e in range(num_epoch):
-        train_loss, train_acc = train_steps(model, training_iter, optimizer, pbar, global_step, t_total, start, device)
+        train_loss, train_acc, global_step = train_steps(model, training_iter, optimizer, pbar, global_step, t_total, start, device)
         eval_acc, eval_f1, eval_loss_avg = evaluate(model, eval_iter, device)
 
         if eval_f1 > best_f1:
@@ -137,6 +137,7 @@ def train_steps(model, training_iter, optimizer, pbar, global_step, t_total, sta
             optimizer.backward(train_loss)
         else:
             train_loss.backward()
+            #train_loss.backward(torch.ones_like(train_loss))
 
         if (step + 1) % args.gradient_accumulation_steps == 0:
             # modify learning rate with special warm up BERT uses
@@ -145,16 +146,16 @@ def train_steps(model, training_iter, optimizer, pbar, global_step, t_total, sta
                 param_group['lr'] = lr_this_step
             optimizer.step()
             optimizer.zero_grad()
-            global_step += 1
+            global_step += args.gradient_accumulation_steps
 
         start_logits, end_logits = start_logits.cpu(), end_logits.cpu()
         start_positions, end_positions = start_positions.cpu(), end_positions.cpu()
         train_acc, f1 = qa_evaluate((start_logits, end_logits), (start_positions, end_positions))
         pbar.show_process(train_acc, train_loss.item(), f1, time.time() - start, step)
 
-        if (step+1) % args.train_sample == 0:
-            log_writer.add_scalar('Loss', train_loss.item(), step)
-            log_writer.add_scalar('Acc', train_acc, step)
+        if (global_step) % args.train_sample == 0:
+            log_writer.add_scalar('Loss', train_loss.item(), global_step)
+            log_writer.add_scalar('Acc', train_acc, global_step)
 
         '''
         模型选择
@@ -164,7 +165,7 @@ def train_steps(model, training_iter, optimizer, pbar, global_step, t_total, sta
                 max_f1 = f1
                 save_model(model, args.output_dir, step)
 
-    return train_loss, train_acc
+    return train_loss, train_acc, global_step
 
     #loss_acc_plot(history)
 

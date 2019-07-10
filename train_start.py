@@ -9,7 +9,8 @@ import config.args as args
 from util.porgress_util import ProgressBar
 from util.model_util import load_model
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1,2,3"
+from preprocessing.data_processor import read_squad_data
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 def start():
     train_iter, num_train_steps = create_batch_iter("train")
@@ -21,10 +22,11 @@ def start():
 
     #model = load_model(args.output_dir)
     model = QaExtract.from_pretrained(args.bert_model)  #QaExtract(args)
-
+    '''
     for name, param in model.named_parameters():
         if param.requires_grad:
             print(name)
+    '''
         # ------------------判断CUDA模式----------------------
     if args.local_rank == -1 or args.no_cuda:
         device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
@@ -59,4 +61,5 @@ def start():
 
 
 if __name__ == "__main__":
+    #read_squad_data("data/big_train_data.json", "../data/")
     start()

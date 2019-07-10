@@ -2,7 +2,8 @@
 log_path = "output/logs"
 plot_path = "output/images/loss_acc.png"
 data_dir = "data/"
-output_dir = "output/checkpoint"
+#output_dir = "output/checkpoint"
+output_dir = "output_sdn/checkpoint"
 VOCAB_FILE = "pretrained_model/vocab.txt"
 bert_model = "pretrained_model/pytorch_pretrained_model"
 log_file = "output/logs"
@@ -30,7 +31,7 @@ eval_epoch = 2
 
 
 answer_type = {"YES": 0, "NO": 1, "no-answer": 2, "long-answer": 3}
-domain_type = {"civil": 0, "criminal": 1}
+domain_type = {"civil": 0, "criminal": 1, "":3}
 
 # ------------ Predict -----------------
 predict_batch_size = 16

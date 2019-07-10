@@ -413,11 +413,13 @@ def _check_is_max_context(doc_spans, cur_span_index, position):
 
 
 if __name__ == '__main__':
-    read_squad_data("../data/small_train_data.json", "../data/")
+    read_squad_data("../data/big_train_data.json", "../data/")
     examples = read_qa_examples("../data/", "train")
+    '''
     convert_examples_to_features(examples,
                                  tokenizer=BertTokenizer("../pretrained_model/vocab.txt"),
                                  max_seq_length=512,
                                  doc_stride=500,
                                  max_query_length=32,
                                  is_training=True)
+    '''
