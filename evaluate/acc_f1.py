@@ -10,7 +10,7 @@ def evaluate(y_pred, y_true):
     f1 = f1_score(y_true, y_pred, average="macro")
     correct = np.sum((y_true == y_pred).astype(int))
     acc = correct / y_pred.shape[0]
-    print(classification_report(y_true, y_pred))
+    #print(classification_report(y_true, y_pred))
     return (acc, f1)
 
 

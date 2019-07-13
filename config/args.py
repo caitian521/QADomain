@@ -1,19 +1,33 @@
 # ---------- Train -------------------
-log_path = "output/logs"
-plot_path = "output/images/loss_acc.png"
+my_output = "output_domain_compress_sdn/"
+
+log_path = my_output + "logs"
+plot_path = my_output + "images/loss_acc.png"
 data_dir = "data/"
-#output_dir = "output/checkpoint"
-output_dir = "output_sdn/checkpoint"
+output_dir = my_output + "checkpoint"
+#output_dir = "output_sdn/checkpoint"
 VOCAB_FILE = "pretrained_model/vocab.txt"
 bert_model = "pretrained_model/pytorch_pretrained_model"
-log_file = "output/logs"
+log_file = my_output + "logs"
+
+import os
+if not os.path.exists(my_output):
+    os.makedirs(my_output)
+    os.makedirs(log_path)
+    os.makedirs(output_dir)
+    os.makedirs(my_output+ "images")
+
+
+#load_path = "output_domain_compress/checkpoint/pytorch_model0036150.bin"
+load_path = "output_domain_compress_sdn/checkpoint/pytorch_model0036150.bin"
+
 
 doc_stride = 128
 max_query_length = 32
 max_seq_length = 256
 do_lower_case = True
-train_batch_size = 32
-eval_batch_size = 32
+train_batch_size = 36
+eval_batch_size = 36
 learning_rate = 2e-5
 num_train_epochs = 6
 warmup_proportion = 0.1

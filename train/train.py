@@ -25,6 +25,13 @@ def warmup_linear(x, warmup=0.002):
     return 1.0 - x
 
 log_writer = SummaryWriter(args.log_file)
+train_losses = []
+train_accuracy = []
+
+history = {
+    "train_loss": train_losses,
+    "train_acc": train_accuracy
+}
 def fit(model, training_iter, eval_iter, num_epoch, pbar, num_train_steps, device, n_gpu=1, verbose=1):
 
     # ---------------------优化器-------------------------
@@ -77,19 +84,6 @@ def fit(model, training_iter, eval_iter, num_epoch, pbar, num_train_steps, devic
 
     elif n_gpu > 1:
         model = torch.nn.DataParallel(model)  # , device_ids=[0, 1, 2]
-    '''
-    train_losses = []
-    eval_losses = []
-    train_accuracy = []
-    eval_accuracy = []
-
-    history = {
-        "train_loss": train_losses,
-        "train_acc": train_accuracy,
-        "eval_loss": eval_losses,
-        "eval_acc": eval_accuracy
-    }
-    '''
 
     # 保存最好的模型
     best_f1 = 0
@@ -102,13 +96,7 @@ def fit(model, training_iter, eval_iter, num_epoch, pbar, num_train_steps, devic
         if eval_f1 > best_f1:
             best_f1 = eval_f1
             save_model(model, args.output_dir, t_total*(e+1))
-        '''
-        if e % verbose == 0:
-            train_losses.append(train_loss.item())
-            train_accuracy.append(train_acc)
-            eval_losses.append(eval_loss_avg)
-            eval_accuracy.append(eval_acc)
-        '''
+
         logger.info(
             '\n\nEpoch %d - train_loss: %4f - eval_loss: %4f - train_acc:%4f - eval_acc:%4f - eval_f1:%4f\n'
             % (e + 1,
@@ -117,7 +105,7 @@ def fit(model, training_iter, eval_iter, num_epoch, pbar, num_train_steps, devic
                train_acc,
                eval_acc,
                eval_f1))
-
+    loss_acc_plot(history)
 # ------------------------训练------------------------------
 def train_steps(model, training_iter, optimizer, pbar, global_step, t_total, start, device):
     model.train()
@@ -148,9 +136,14 @@ def train_steps(model, training_iter, optimizer, pbar, global_step, t_total, sta
             optimizer.zero_grad()
             global_step += args.gradient_accumulation_steps
 
+
         start_logits, end_logits = start_logits.cpu(), end_logits.cpu()
         start_positions, end_positions = start_positions.cpu(), end_positions.cpu()
         train_acc, f1 = qa_evaluate((start_logits, end_logits), (start_positions, end_positions))
+
+        #if e % verbose == 0:
+        train_losses.append(train_loss.item())
+        train_accuracy.append(train_acc)
         pbar.show_process(train_acc, train_loss.item(), f1, time.time() - start, step)
 
         if (global_step) % args.train_sample == 0:

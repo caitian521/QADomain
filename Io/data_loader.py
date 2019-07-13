@@ -3,7 +3,8 @@ import config.args as args
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
 from pytorch_pretrained_bert.tokenization import BertTokenizer
-from preprocessing.data_processor import read_qa_examples, convert_examples_to_features
+#from preprocessing.data_processor import read_qa_examples, convert_examples_to_features
+from preprocessing.data_deal import read_qa_examples, convert_examples_to_features
 from util.Logginger import init_logger
 
 logger = init_logger("bert_class", logging_path=args.log_path)
@@ -21,7 +22,7 @@ def create_batch_iter(mode):
         examples = read_qa_examples(args.data_dir, "train")
         batch_size = args.train_batch_size
     elif mode == "dev":
-        examples = read_qa_examples(args.data_dir, "dev")
+        examples = read_qa_examples(args.data_dir, "test")
         batch_size = args.eval_batch_size
     else:
         raise ValueError("Invalid mode %s" % mode)
